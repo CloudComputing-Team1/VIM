@@ -71,13 +71,31 @@ async def main(host, port):
     print(f'Serving on {host}:{port}')
     async with server:
         await server.serve_forever()
+        
+def is_vm_running(vm_name):
+    # 실행 중인 VM 목록을 확인
+    output = os.popen("VBoxManage list runningvms").read()
+    
+    # 결과를 확인하여 지정된 VM 이름이 포함되어 있는지 검사
+    if vm_name in output:
+        return True
+    return False
 
 # 서버 호스트와 포트 설정
 HOST = '0.0.0.0'
 PORT = 9999
 
 # 첫 서비스 서버(VM) 오픈
-os.system("VBoxManage.exe startvm Ubuntu22")
+vm_name = "Ubuntu22"
+template_vm_name = "Ubuntu22_template"
+if is_vm_running(vm_name):
+    print(f"Already started vm {vm_name}")
+else:
+    print(f"Start vm {vm_name}")
+    os.system(f"VBoxManage.exe startvm {vm_name}")
 
-# 이벤트 루프 시작
+os.system("VBoxManage.exe clonevm " + template_vm_name + " --name=" + vm_name + "_1" + " --register --mode=all --options=keepallmacs --options=keepdisknames --options=keephwuuids")
+os.system("VBoxManage.exe startvm " + vm_name + "_1")
+
+# 이벤트 루프 시작s
 asyncio.run(main(HOST, PORT))
