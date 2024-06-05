@@ -94,8 +94,8 @@ else:
     print(f"Start vm {vm_name}")
     os.system(f"VBoxManage.exe startvm {vm_name}")
 
-os.system("VBoxManage.exe clonevm " + template_vm_name + " --name=" + vm_name + "_1" + " --register --mode=all --options=keepallmacs --options=keepdisknames --options=keephwuuids")
-os.system("VBoxManage.exe startvm " + vm_name + "_1")
+# os.system("VBoxManage.exe clonevm " + template_vm_name + " --name=" + vm_name + "_1" + " --register --mode=all --options=keepallmacs --options=keepdisknames --options=keephwuuids")
+# os.system("VBoxManage.exe startvm " + vm_name + "_1")
 
 # 이벤트 루프 시작s
 asyncio.run(main(HOST, PORT))

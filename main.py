@@ -3,6 +3,7 @@ import asyncio
 from flask import Flask, request, Response
 import requests
 import re
+from flask_cors import CORS
 
 # Constants
 HOST = '0.0.0.0'
@@ -25,8 +26,8 @@ async def monitor_vms():
         if cpu_usages:
             min_cpu_usage_vm = get_min_cpu_usage_vm()
             # print(f"VM with minimum CPU usage: {min_cpu_usage_vm}")
-            # if get_average_cpu_usage(min_cpu_usage_vm) >= CPU_USAGE_THRESHOLD:
-            #     auto_scale()
+            if get_average_cpu_usage(min_cpu_usage_vm) >= CPU_USAGE_THRESHOLD:
+                auto_scale()
 
         await asyncio.sleep(1)
 
@@ -102,10 +103,12 @@ async def handle_client(reader, writer):
                     print(f"Average CPU usage for {addr}: {average_usage:.2f}%")
                     
                 elif "Min CPU usage container port" in response:
-                    match = re.search(r"Min CPU usage container port: (\d+)", response)
+                    match = re.search(r"Min CPU usage container port: (\d+), ports: dict_keys\((\[[^\]]+\])\)", response)
                     if match:
                         port = match.group(1)
-                        await message_queues[addr].put(port)
+                        keys_str = match.group(2)
+                        keys_list = eval(keys_str)
+                        await message_queues[addr].put([port] + keys_list)
                     
             else:
                 print(f"Connection lost with {addr}. Closing connection.")
@@ -168,7 +171,15 @@ async def send_message_to_specific_vm(ip, message):
 
         # 응답 받기
         try:
-            port = await asyncio.wait_for(message_queues[ip].get(), timeout=READ_TIMEOUT)
+            response = await asyncio.wait_for(message_queues[ip].get(), timeout=READ_TIMEOUT)
+            if isinstance(response, list) and len(response) > 1:
+                port = response[0]
+                keys = response[1:]
+                print(f"Received port: {port} and keys: {keys}")
+                return port, keys
+            else:
+                print("Unexpected response format.")
+                return None, None
         except asyncio.TimeoutError:
             print(f"No response from {ip}. Closing connection.")
             return None
@@ -220,6 +231,7 @@ async def clone_and_start_vm(template_vm_name, vm_id):
     # await proc.communicate()  # Starting finished
 
 app = Flask(__name__)
+CORS(app)
 
 @app.after_request
 def add_header(response):
@@ -231,7 +243,7 @@ def add_header(response):
 def proxy(path):
     min_cpu_usage_vm = get_min_cpu_usage_vm()
     
-    container_port = asyncio.run(send_message_to_specific_vm(min_cpu_usage_vm, "Get container with min CPU usage"))
+    container_port, ports = asyncio.run(send_message_to_specific_vm(min_cpu_usage_vm, "Get container with min CPU usage"))
     print("container_port: ", container_port)
     
     url = f'http://localhost:{container_port}/{path}'
@@ -247,7 +259,9 @@ def proxy(path):
     headers = [(name, value) for name, value in response.raw.headers.items()
                if name.lower() not in excluded_headers]
 
-    response = Response(response.content, response.status_code, headers)
+    response_content = response.content.decode('utf-8') + f"\n\nRequest was routed to VM with address: {min_cpu_usage_vm}"
+    response = Response(response_content, response.status_code, headers)
+    response = f"Container port: {container_port}, ports: {ports}"
     return response
 
 def run_flask():

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Request Page</title>
+    <style>
+        #container {
+            display: flex;
+            justify-content: space-between;
+        }
+        #responseContainer {
+            flex: 1;
+        }
+        #portsContainer {
+            flex: 1;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <h1>Server Request Page</h1>
+    <button id="sendRequestButton">Send Request to Server</button>
+    <div id="container">
+        <div id="responseContainer"></div>
+        <div id="portsContainer">
+            <h3>Current Running Containers</h3>
+        </div>
+    </div>
+
+    <script>
+        let clientCounter = 1;
+
+        document.getElementById('sendRequestButton').addEventListener('click', () => {
+            fetch('http://localhost:8080/')
+                .then(response => response.text())
+                .then(data => {
+                    const responseText = document.createElement('p');
+                    const clientNumber = `Client${clientCounter}`;
+                    clientCounter++;
+
+                    const portMatch = data.match(/Container port: (\d+)/);
+                    const portsMatch = data.match(/ports: \[(.*?)\]/);
+
+                    if (portMatch && portsMatch) {
+                        const port = parseInt(portMatch[1], 10);
+                        const ports = portsMatch[1].split(', ').map(Number);
+
+                        let vmm = getVmm(port);
+
+                        responseText.innerText = `${clientNumber} connected to port ${port} (${vmm})`;
+
+                        // Update the response container
+                        document.getElementById('responseContainer').appendChild(responseText);
+
+                        // Update the ports container
+                        const portsContainer = document.getElementById('portsContainer');
+                        portsContainer.innerHTML = '<h3>Current Running Ports</h3>';
+                        ports.forEach(p => {
+                            const portText = document.createElement('p');
+                            portText.innerText = `Port ${p} (${getVmm(p)})`;
+                            portsContainer.appendChild(portText);
+                        });
+                    } else {
+                        console.log(`${clientNumber} received unexpected response: ${data}`);
+                        clientCounter--;
+                    }
+                })
+                .catch(error => {
+                    console.log("Error: ", error);
+                });
+        });
+
+        function getVmm(port) {
+            if (port >= 12220 && port <= 12222) {
+                return 'VMM1';
+            } else if (port >= 12223 && port <= 12225) {
+                return 'VMM2';
+            } else if (port >= 12226 && port <= 12227) {
+                return 'VMM3';
+            } else {
+                return 'Unknown VMM';
+            }
+        }
+    </script>
+</body>
+</html>
